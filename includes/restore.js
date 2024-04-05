@@ -16,9 +16,11 @@
 const debug = require('debug')('couchbackup:restore');
 const { Liner } = require('../includes/liner.js');
 const { Restore } = require('../includes/restoreMappings.js');
-const { BatchingStream, MappingStream } = require('./transforms.js');
+const { BatchingStream, MappingStream, SideEffect } = require('./transforms.js');
 const { Writable } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
+const { attachmentRestoreHandler } = require('./attachments.js');
+ 
 
 /**
  * Function for performing a restore.
@@ -54,6 +56,7 @@ module.exports = function(dbClient, options, readstream, ee) {
     new MappingStream(restore.backupLineToDocsArray), // convert line to a docs array
     new BatchingStream(options.bufferSize, true), // make new arrays of the correct buffer size
     new MappingStream(restore.docsToRestoreBatch), // make a restore batch
+    new MappingStream(attachmentRestoreHandler.bind(dbClient)), // restore attachments
     new MappingStream(restore.pendingToRestored, options.parallelism), // do the restore at the desired level of concurrency
     output // emit restored events
   ).then(() => {
